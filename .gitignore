@@ -1,0 +1,39 @@
+# Build artifacts
+**/target/
+**/build/
+*.class
+
+# Maven wrapper cache/binary
+**/.mvn/wrapper/maven-wrapper.jar
+
+# Local databases and runtime files
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# IDEs and editor metadata
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.classpath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Temporary files
+*.tmp
+*.swp
+*~
