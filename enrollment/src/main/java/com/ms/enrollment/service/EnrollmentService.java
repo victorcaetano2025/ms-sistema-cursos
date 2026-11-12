@@ -6,8 +6,11 @@ import com.ms.enrollment.model.EnrollmentStatus;
 import com.ms.enrollment.repository.EnrollmentRepository;
 import com.ms.enrollment.config.RabbitMQConfig; // A classe de config que você criou
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.Optional;
 
@@ -18,11 +21,16 @@ public class EnrollmentService {
 
     private final EnrollmentRepository repository;
     private final RabbitTemplate rabbitTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     // Injeção de dependência via construtor (Boa prática do Spring)
-    public EnrollmentService(EnrollmentRepository repository, RabbitTemplate rabbitTemplate) {
+    public EnrollmentService(
+            EnrollmentRepository repository,
+            RabbitTemplate rabbitTemplate,
+            ApplicationEventPublisher eventPublisher) {
         this.repository = repository;
         this.rabbitTemplate = rabbitTemplate;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -48,14 +56,19 @@ public class EnrollmentService {
             courseId
         );
 
-        // A mensagem é assíncrona: o Progress Service cria seu próprio estado local.
+        // O evento só será encaminhado ao RabbitMQ depois do commit da matrícula.
+        eventPublisher.publishEvent(event);
+
+        return savedEnrollment;
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void publishEnrollmentCreated(EnrollmentCreatedEvent event) {
         rabbitTemplate.convertAndSend(
-            RabbitMQConfig.EXCHANGE_NAME, 
+            RabbitMQConfig.EXCHANGE_NAME,
             ROUTING_ENROLLMENT_CREATED,
             event
         );
-
-        return savedEnrollment;
     }
 
     public Optional<Enrollment> findById(Long enrollmentId) {

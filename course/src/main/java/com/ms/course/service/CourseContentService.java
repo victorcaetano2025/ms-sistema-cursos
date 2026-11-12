@@ -5,7 +5,11 @@ import com.ms.course.model.Lesson;
 import com.ms.course.repository.LessonRepository;
 import com.ms.course.config.RabbitMQConfig;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import static com.ms.course.config.RabbitMQConfig.ROUTING_LESSON_COMPLETED;
 
@@ -14,12 +18,18 @@ public class CourseContentService {
 
     private final LessonRepository lessonRepository;
     private final RabbitTemplate rabbitTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public CourseContentService(LessonRepository lessonRepository, RabbitTemplate rabbitTemplate) {
+    public CourseContentService(
+            LessonRepository lessonRepository,
+            RabbitTemplate rabbitTemplate,
+            ApplicationEventPublisher eventPublisher) {
         this.lessonRepository = lessonRepository;
         this.rabbitTemplate = rabbitTemplate;
+        this.eventPublisher = eventPublisher;
     }
 
+    @Transactional(readOnly = true)
     public void completeLesson(Long studentId, Long courseId, Long lessonId) {
         validateIds(studentId, courseId, lessonId);
 
@@ -40,9 +50,14 @@ public class CourseContentService {
             totalLessons
         );
 
-        // O Progress Service atualiza o próprio banco sem compartilhar tabelas com este serviço.
+        // A validação do catálogo termina antes de o evento ser encaminhado ao RabbitMQ.
+        eventPublisher.publishEvent(event);
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void publishLessonCompleted(LessonCompletedEvent event) {
         rabbitTemplate.convertAndSend(
-            RabbitMQConfig.EXCHANGE_NAME, 
+            RabbitMQConfig.EXCHANGE_NAME,
             ROUTING_LESSON_COMPLETED,
             event
         );

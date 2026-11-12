@@ -5,8 +5,11 @@ import com.ms.certificate.model.Certificate;
 import com.ms.certificate.repository.CertificateRepository;
 import com.ms.certificate.config.RabbitMQConfig;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.LocalDateTime;
 
@@ -17,10 +20,15 @@ public class CertificateService {
 
     private final CertificateRepository repository;
     private final RabbitTemplate rabbitTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public CertificateService(CertificateRepository repository, RabbitTemplate rabbitTemplate) {
+    public CertificateService(
+            CertificateRepository repository,
+            RabbitTemplate rabbitTemplate,
+            ApplicationEventPublisher eventPublisher) {
         this.repository = repository;
         this.rabbitTemplate = rabbitTemplate;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -51,9 +59,14 @@ public class CertificateService {
             savedCertificate.getValidationCode()
         );
 
-        // O Enrollment Service usa este evento para atualizar a matrícula.
+        // O evento só será encaminhado ao RabbitMQ depois do commit do certificado.
+        eventPublisher.publishEvent(event);
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void publishCertificateIssued(CertificateIssuedEvent event) {
         rabbitTemplate.convertAndSend(
-            RabbitMQConfig.EXCHANGE_NAME, 
+            RabbitMQConfig.EXCHANGE_NAME,
             ROUTING_CERTIFICATE_ISSUED,
             event
         );

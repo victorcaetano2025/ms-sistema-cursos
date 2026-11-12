@@ -6,8 +6,11 @@ import com.ms.progress.model.StudentLessonStatus;
 import com.ms.progress.repository.StudentProgressRepository;
 import com.ms.progress.config.RabbitMQConfig;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.LocalDateTime;
 
@@ -18,10 +21,15 @@ public class ProgressService {
 
     private final StudentProgressRepository repository;
     private final RabbitTemplate rabbitTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public ProgressService(StudentProgressRepository repository, RabbitTemplate rabbitTemplate) {
+    public ProgressService(
+            StudentProgressRepository repository,
+            RabbitTemplate rabbitTemplate,
+            ApplicationEventPublisher eventPublisher) {
         this.repository = repository;
         this.rabbitTemplate = rabbitTemplate;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -64,18 +72,21 @@ public class ProgressService {
             progress.setIsCourseCompleted(true);
             progress.setCompletedAt(LocalDateTime.now());
             
-            // Só publica uma vez, quando a transição para concluído ocorre pela primeira vez.
-            CourseCompletedEvent event = new CourseCompletedEvent(studentId, courseId);
-            
-            rabbitTemplate.convertAndSend(
-                RabbitMQConfig.EXCHANGE_NAME, 
-                ROUTING_COURSE_COMPLETED,
-                event
-            );
+            // O evento interno só será encaminhado ao RabbitMQ após o commit da transação.
+            eventPublisher.publishEvent(new CourseCompletedEvent(studentId, courseId));
         }
 
         // Salva tudo atualizado no banco
         repository.save(progress);
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void publishCourseCompleted(CourseCompletedEvent event) {
+        rabbitTemplate.convertAndSend(
+            RabbitMQConfig.EXCHANGE_NAME,
+            ROUTING_COURSE_COMPLETED,
+            event
+        );
     }
 
     private void validateIds(Long studentId, Long courseId, Long lessonId, Long totalLessons) {

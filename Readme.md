@@ -2,6 +2,13 @@
 
 Sistema distribuído para gerenciamento de cursos, matrículas, progresso de alunos e emissão de certificados.
 
+## Documentação
+
+- [Bancos de dados](./BANCOS_DE_DADOS.md)
+- [Decisões de arquitetura](./DECISOES_ARQUITETURA.md)
+- [Roteiro de teste do fluxo completo](./TESTE_FLUXO_COMPLETO.md)
+- [Galeria de imagens](./GALERIA_DE_IMAGENS.md)
+
 ## Arquitetura
 
 O projeto é organizado como quatro microserviços independentes. Cada serviço possui seu próprio banco SQLite e expõe uma API REST. A comunicação entre processos é feita de forma assíncrona pelo RabbitMQ; não há compartilhamento direto de tabelas entre os serviços.
@@ -44,9 +51,11 @@ flowchart LR
 | `enrollment` | `8081` | Criar e consultar matrículas; atualizar a matrícula quando o certificado estiver pronto | `enrollment.db` |
 | `course` | `8082` | Criar/consultar cursos e lições; publicar conclusão de lição | `course.db` |
 | `progress` | `8083` | Inicializar e atualizar o progresso do aluno; detectar conclusão do curso | `progress.db` |
-| `certificate` | `8084` | Gerar e consultar certificados; validar o código público | `certificate.db` |
+| `certificate` | `8084` | Registrar e consultar certificados; validar o código público | `certificate.db` |
 
-Todos os serviços usam Spring Boot `4.1.0`, Java `21`, Spring Web MVC, Spring Data JPA, Hibernate e Lombok. O RabbitMQ usa mensagens JSON com um `DirectExchange` chamado `SGCO.exchange`.
+Todos os serviços usam Spring Boot `4.1.0`, Java `21`, Spring Web MVC, Spring Data JPA, Hibernate e Lombok. Os eventos são enviados como JSON pelo exchange `SGCO.exchange`, do tipo `DirectExchange`.
+
+**Limitações atuais:** há apenas um tipo de exchange configurado; portanto, o requisito de usar pelo menos dois tipos ainda não está atendido. Os logs e o tratamento de erros também são básicos, sem padronização centralizada.
 
 ### Fluxos de eventos
 
