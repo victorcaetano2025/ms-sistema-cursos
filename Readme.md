@@ -2,6 +2,12 @@
 
 Sistema distribuído para gerenciamento de cursos, matrículas, progresso de alunos e emissão de certificados.
 
+## Integrante
+
+- Victor Caetano Da Conceição
+
+Trabalho desenvolvido individualmente.
+
 ## Documentação
 
 - [Bancos de dados](./BANCOS_DE_DADOS.md)
